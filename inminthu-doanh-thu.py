@@ -1,107 +1,97 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from datetime import datetime
-from collections import defaultdict
+from datetime import datetime, date, time
+import plotly.express as px
 
-st.set_page_config(page_title="INMINHTHU CAFÉ", layout="wide")
+st.set_page_config(page_title="INMINHTHU CAFÉ Bán Hàng", layout="wide")
+st.title("☕ INMINHTHU CAFÉ - Quản lý bán hàng")
 
-# Menu đồ uống và chi phí nguyên liệu
-menu = {
-    "Cà phê đen": {"M": 12, "L": 17, "XL": 20},
-    "Cà phê sữa": {"M": 15, "L": 19, "XL": 23},
-    "Cà phê muối": {"M": 16, "L": 21, "XL": 26},
-    "Bạc xỉu": {"M": 17, "L": 22, "XL": 27},
-    "Trà tắc": {"M": 8, "L": 10, "XL": 15},
-    "Trà đường": {"M": 6, "L": 9, "XL": 10},
-    "Matcha latte": {"M": 17, "L": 22, "XL": 26},
-    "Matcha latte muối": {"M": 17, "L": 22, "XL": 26},
-}
+# File CSV lưu dữ liệu
+DATA_FILE = "data.csv"
 
-# Chi phí nguyên liệu mỗi ly (ước lượng)
-chi_phi = {
-    "Cà phê đen": 4,
-    "Cà phê sữa": 6,
-    "Cà phê muối": 7,
-    "Bạc xỉu": 7,
-    "Trà tắc": 3,
-    "Trà đường": 2,
-    "Matcha latte": 10,
-    "Matcha latte muối": 11,
-}
+# Load dữ liệu nếu đã có
+@st.cache_data
+def load_data():
+    try:
+        df = pd.read_csv(DATA_FILE, parse_dates=['Thời gian'])
+        return df
+    except:
+        return pd.DataFrame(columns=["Tên khách", "Món", "Size", "Số lượng", "Thời gian"])
 
-# Bộ nhớ tạm để lưu dữ liệu khách hàng theo ngày
-if "data" not in st.session_state:
-    st.session_state.data = defaultdict(list)
+# Lưu dữ liệu
+def save_data(df):
+    df.to_csv(DATA_FILE, index=False)
 
-st.title("📊 INMINHTHU CAFÉ – Ghi nhận bán hàng")
+# ====== GIAO DIỆN NHẬP LIỆU ======
+st.sidebar.header("📥 Nhập đơn hàng")
+ten_khach = st.sidebar.text_input("Tên khách hàng")
+mon = st.sidebar.selectbox("Chọn món", [
+    "Cà phê đen", "Cà phê sữa", "Cà phê muối", "Bạc xỉu",
+    "Trà tắc", "Trà đường", "Matcha latte", "Matcha macchiato"
+])
+size = st.sidebar.selectbox("Chọn size", ["M", "L", "XL"])
+so_luong = st.sidebar.number_input("Số lượng", min_value=1, value=1)
 
-# Lấy thời gian hiện tại
-now = datetime.now()
-date_str = now.strftime("%A, %d/%m/%Y")
-time_str = now.strftime("%H:%M")
-st.markdown(f"### 🗓️ {date_str} – 🕒 {time_str}")
+# Ngày và giờ bán (người dùng chọn thủ công)
+ngay_ban = st.sidebar.date_input("📅 Chọn ngày bán", value=date.today())
+gio_ban = st.sidebar.time_input("⏰ Chọn giờ bán (giờ:phút)", value=datetime.now().time())
+thoi_gian = datetime.combine(ngay_ban, gio_ban)
 
-st.markdown("---")
+if st.sidebar.button("✅ Lưu đơn"):
+    new_data = pd.DataFrame({
+        "Tên khách": [ten_khach],
+        "Món": [mon],
+        "Size": [size],
+        "Số lượng": [so_luong],
+        "Thời gian": [thoi_gian]
+    })
+    df = pd.concat([load_data(), new_data], ignore_index=True)
+    save_data(df)
+    st.sidebar.success("Đã lưu đơn hàng!")
 
-st.subheader("➕ Nhập đơn mới")
-col1, col2, col3 = st.columns(3)
+# ====== GIAO DIỆN XEM DỮ LIỆU ======
+st.header("📊 Thống kê theo ngày")
 
-with col1:
-    ten_khach = st.text_input("Tên khách hàng")
+# Chọn ngày cần xem
+df = load_data()
+df["Ngày"] = df["Thời gian"].dt.date
+df["Giờ"] = df["Thời gian"].dt.strftime("%H:%M")
+df["Thứ"] = df["Thời gian"].dt.strftime("%A")
 
-with col2:
-    ten_mon = st.selectbox("Chọn món", list(menu.keys()))
-
-with col3:
-    size = st.radio("Chọn size", ["M", "L", "XL"], horizontal=True)
-
-if st.button("✅ Thêm đơn"):
-    if not ten_khach:
-        st.warning("Vui lòng nhập tên khách hàng!")
-    else:
-        gia_ban = menu[ten_mon][size]
-        phi = chi_phi[ten_mon]
-        loi_nhuan = gia_ban - phi
-        st.success(f"Đã thêm đơn cho {ten_khach}: {ten_mon} size {size} – Giá bán {gia_ban}k – Lợi nhuận {loi_nhuan}k")
-        st.session_state.data[date_str].append({
-            "Giờ": time_str,
-            "Khách": ten_khach,
-            "Món": ten_mon,
-            "Size": size,
-            "Giá bán": gia_ban,
-            "Chi phí": phi,
-            "Lợi nhuận": loi_nhuan
-        })
-
-st.markdown("---")
-
-st.subheader("📋 Danh sách đơn trong ngày")
-
-if date_str in st.session_state.data and st.session_state.data[date_str]:
-    df = pd.DataFrame(st.session_state.data[date_str])
-    st.dataframe(df, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("📊 Thống kê nhanh hôm nay")
-    tong_ly = len(df)
-    tong_loi = df["Lợi nhuận"].sum()
-    best_seller = df["Món"].value_counts().idxmax()
-    best_seller_so_ly = df["Món"].value_counts().max()
-
-    st.markdown(f"- **Tổng số ly bán:** {tong_ly} ly")
-    st.markdown(f"- **Tổng lợi nhuận:** {tong_loi}k")
-    st.markdown(f"- **Món bán nhiều nhất:** {best_seller} ({best_seller_so_ly} ly)")
-
-    # Biểu đồ cột
-    st.markdown("### 📈 Biểu đồ số ly từng món")
-    chart_data = df["Món"].value_counts().reset_index()
-    chart_data.columns = ["Món", "Số ly"]
-    fig, ax = plt.subplots()
-    ax.barh(chart_data["Món"], chart_data["Số ly"], color="skyblue")
-    ax.set_xlabel("Số ly")
-    ax.set_ylabel("Món")
-    ax.set_title("Số ly mỗi món đã bán hôm nay")
-    st.pyplot(fig)
+if df.empty:
+    st.info("Chưa có dữ liệu.")
 else:
-    st.info("Chưa có đơn nào hôm nay.")
+    ngay_xem = st.date_input("📆 Chọn ngày để xem thống kê", value=date.today())
+    df_ngay = df[df["Ngày"] == ngay_xem]
+
+    if df_ngay.empty:
+        st.warning("Không có đơn nào trong ngày này.")
+    else:
+        # Hiển thị danh sách đơn hàng
+        st.subheader(f"📝 Danh sách khách ngày {df_ngay['Thứ'].iloc[0]}, {ngay_xem.strftime('%d/%m/%Y')}")
+        st.dataframe(df_ngay[["Tên khách", "Món", "Size", "Số lượng", "Giờ"]], use_container_width=True)
+
+        # Tổng số ly
+        tong_ly = df_ngay["Số lượng"].sum()
+        st.metric("🥤 Tổng số ly bán", tong_ly)
+
+        # Món bán chạy nhất
+        top_mon = df_ngay.groupby("Món")["Số lượng"].sum().sort_values(ascending=False)
+        mon_top = top_mon.idxmax()
+        st.metric("🔥 Món bán chạy nhất", f"{mon_top} ({top_mon.max()} ly)")
+
+        # Biểu đồ cột số lượng theo món
+        chart1 = px.bar(top_mon, x=top_mon.index, y=top_mon.values, labels={"x": "Món", "y": "Số lượng"},
+                        title="Biểu đồ số lượng theo món", color=top_mon.index)
+        st.plotly_chart(chart1, use_container_width=True)
+
+        # Biểu đồ tròn
+        chart2 = px.pie(df_ngay, names="Món", values="Số lượng", title="Tỷ lệ các món bán ra")
+        st.plotly_chart(chart2, use_container_width=True)
+
+        # Nếu nhiều ngày có dữ liệu, thêm line chart theo thời gian
+        if df["Ngày"].nunique() > 1:
+            trend = df.groupby("Ngày")["Số lượng"].sum()
+            chart3 = px.line(trend, x=trend.index, y=trend.values, labels={"x": "Ngày", "y": "Tổng số ly"},
+                             title="📈 Xu hướng bán theo ngày")
+            st.plotly_chart(chart3, use_container_width=True)
