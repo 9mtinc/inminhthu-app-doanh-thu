@@ -1,76 +1,107 @@
-# Streamlit app code for calculating drink profits with input form and chart
 import streamlit as st
 import pandas as pd
-import datetime
+import matplotlib.pyplot as plt
+from datetime import datetime
+from collections import defaultdict
 
-# Sample profit data (pre-calculated from earlier analysis)
-data = [
-    {"Drink": "Cà phê muối", "Size": "1l", "Price": 26000, "Cost": 6938.44, "Profit": 19061.56},
-    {"Drink": "Bạc xỉu", "Size": "1l", "Price": 27000, "Cost": 9842.28, "Profit": 17157.72},
-    {"Drink": "Cà phê sữa", "Size": "1l", "Price": 23000, "Cost": 6938.44, "Profit": 16061.56},
-    {"Drink": "Cà phê muối", "Size": "800ml", "Price": 21000, "Cost": 5460.62, "Profit": 15539.38},
-    {"Drink": "Matcha latte muối", "Size": "1l", "Price": 28000, "Cost": 12958.69, "Profit": 15041.31},
-    {"Drink": "Cà phê đen", "Size": "1l", "Price": 20000, "Cost": 5261.00, "Profit": 14739.00},
-    {"Drink": "Matcha latte muối", "Size": "800ml", "Price": 24000, "Cost": 9310.87, "Profit": 14689.13},
-    {"Drink": "Bạc xỉu", "Size": "800ml", "Price": 22000, "Cost": 7404.21, "Profit": 14595.79},
-    {"Drink": "Cà phê sữa", "Size": "800ml", "Price": 19000, "Cost": 5460.62, "Profit": 13539.38},
-    {"Drink": "Matcha latte", "Size": "1l", "Price": 26000, "Cost": 12958.69, "Profit": 13041.31},
-    {"Drink": "Matcha latte", "Size": "800ml", "Price": 22000, "Cost": 9310.87, "Profit": 12689.13},
-    {"Drink": "Cà phê đen", "Size": "800ml", "Price": 17000, "Cost": 4409.33, "Profit": 12590.67},
-    {"Drink": "Matcha latte muối", "Size": "500ml", "Price": 19000, "Cost": 6584.05, "Profit": 12415.95},
-    {"Drink": "Bạc xỉu", "Size": "500ml", "Price": 17000, "Cost": 5177.13, "Profit": 11822.87},
-    {"Drink": "Cà phê muối", "Size": "500ml", "Price": 16000, "Cost": 4427.13, "Profit": 11572.87},
-    {"Drink": "Cà phê sữa", "Size": "500ml", "Price": 15000, "Cost": 4427.13, "Profit": 10572.87},
-    {"Drink": "Matcha latte", "Size": "500ml", "Price": 17000, "Cost": 6584.05, "Profit": 10415.95},
-    {"Drink": "Cà phê đen", "Size": "500ml", "Price": 12000, "Cost": 3535.33, "Profit": 8464.67},
-]
+st.set_page_config(page_title="INMINHTHU CAFÉ", layout="wide")
 
-df = pd.DataFrame(data)
+# Menu đồ uống và chi phí nguyên liệu
+menu = {
+    "Cà phê đen": {"M": 12, "L": 17, "XL": 20},
+    "Cà phê sữa": {"M": 15, "L": 19, "XL": 23},
+    "Cà phê muối": {"M": 16, "L": 21, "XL": 26},
+    "Bạc xỉu": {"M": 17, "L": 22, "XL": 27},
+    "Trà tắc": {"M": 8, "L": 10, "XL": 15},
+    "Trà đường": {"M": 6, "L": 9, "XL": 10},
+    "Matcha latte": {"M": 17, "L": 22, "XL": 26},
+    "Matcha latte muối": {"M": 17, "L": 22, "XL": 26},
+}
 
-# Streamlit UI
-st.set_page_config(page_title="INMINHTHU Cafe", layout="wide")
-st.markdown("""
-    <style>
-        body {background-color: black; color: white;}
-        .main {color: white;}
-    </style>
-""", unsafe_allow_html=True)
+# Chi phí nguyên liệu mỗi ly (ước lượng)
+chi_phi = {
+    "Cà phê đen": 4,
+    "Cà phê sữa": 6,
+    "Cà phê muối": 7,
+    "Bạc xỉu": 7,
+    "Trà tắc": 3,
+    "Trà đường": 2,
+    "Matcha latte": 10,
+    "Matcha latte muối": 11,
+}
 
-st.title("INMINHTHU Cafe - Tính Doanh Thu & Lợi Nhuận")
+# Bộ nhớ tạm để lưu dữ liệu khách hàng theo ngày
+if "data" not in st.session_state:
+    st.session_state.data = defaultdict(list)
 
-# Input section
-with st.form("sales_form"):
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        name = st.text_input("Tên khách hàng")
-    with col2:
-        date = st.date_input("Ngày bán", value=datetime.date.today())
-    with col3:
-        time = st.time_input("Giờ bán", value=datetime.datetime.now().time())
+st.title("📊 INMINHTHU CAFÉ – Ghi nhận bán hàng")
 
-    drink = st.selectbox("Chọn loại nước", df['Drink'].unique())
-    size = st.selectbox("Chọn size", df[df['Drink'] == drink]['Size'].unique())
-    quantity = st.number_input("Số lượng", min_value=1, value=1)
+# Lấy thời gian hiện tại
+now = datetime.now()
+date_str = now.strftime("%A, %d/%m/%Y")
+time_str = now.strftime("%H:%M")
+st.markdown(f"### 🗓️ {date_str} – 🕒 {time_str}")
 
-    submitted = st.form_submit_button("Tính toán")
+st.markdown("---")
 
-if submitted:
-    item = df[(df['Drink'] == drink) & (df['Size'] == size)].iloc[0]
-    total_price = item['Price'] * quantity
-    total_cost = item['Cost'] * quantity
-    total_profit = item['Profit'] * quantity
+st.subheader("➕ Nhập đơn mới")
+col1, col2, col3 = st.columns(3)
 
-    st.subheader("Kết quả giao dịch")
-    st.write(f"Khách hàng: {name}")
-    st.write(f"Ngày bán: {date.strftime('%d/%m/%Y')} - Giờ: {time.strftime('%H:%M')}")
-    st.write(f"Món: {drink} ({size}) x {quantity}")
-    st.write(f"Doanh thu: {total_price:,.0f} đồng")
-    st.write(f"Chi phí: {total_cost:,.0f} đồng")
-    st.write(f"Lợi nhuận: {total_profit:,.0f} đồng")
+with col1:
+    ten_khach = st.text_input("Tên khách hàng")
 
-# Chart section
-st.subheader("Biểu đồ lợi nhuận tối đa theo món")
-df_grouped = df.groupby("Drink")["Profit"].sum().sort_values(ascending=False)
-st.bar_chart(df_grouped)
+with col2:
+    ten_mon = st.selectbox("Chọn món", list(menu.keys()))
 
-st.caption("Made by INMINHTHU")
+with col3:
+    size = st.radio("Chọn size", ["M", "L", "XL"], horizontal=True)
+
+if st.button("✅ Thêm đơn"):
+    if not ten_khach:
+        st.warning("Vui lòng nhập tên khách hàng!")
+    else:
+        gia_ban = menu[ten_mon][size]
+        phi = chi_phi[ten_mon]
+        loi_nhuan = gia_ban - phi
+        st.success(f"Đã thêm đơn cho {ten_khach}: {ten_mon} size {size} – Giá bán {gia_ban}k – Lợi nhuận {loi_nhuan}k")
+        st.session_state.data[date_str].append({
+            "Giờ": time_str,
+            "Khách": ten_khach,
+            "Món": ten_mon,
+            "Size": size,
+            "Giá bán": gia_ban,
+            "Chi phí": phi,
+            "Lợi nhuận": loi_nhuan
+        })
+
+st.markdown("---")
+
+st.subheader("📋 Danh sách đơn trong ngày")
+
+if date_str in st.session_state.data and st.session_state.data[date_str]:
+    df = pd.DataFrame(st.session_state.data[date_str])
+    st.dataframe(df, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("📊 Thống kê nhanh hôm nay")
+    tong_ly = len(df)
+    tong_loi = df["Lợi nhuận"].sum()
+    best_seller = df["Món"].value_counts().idxmax()
+    best_seller_so_ly = df["Món"].value_counts().max()
+
+    st.markdown(f"- **Tổng số ly bán:** {tong_ly} ly")
+    st.markdown(f"- **Tổng lợi nhuận:** {tong_loi}k")
+    st.markdown(f"- **Món bán nhiều nhất:** {best_seller} ({best_seller_so_ly} ly)")
+
+    # Biểu đồ cột
+    st.markdown("### 📈 Biểu đồ số ly từng món")
+    chart_data = df["Món"].value_counts().reset_index()
+    chart_data.columns = ["Món", "Số ly"]
+    fig, ax = plt.subplots()
+    ax.barh(chart_data["Món"], chart_data["Số ly"], color="skyblue")
+    ax.set_xlabel("Số ly")
+    ax.set_ylabel("Món")
+    ax.set_title("Số ly mỗi món đã bán hôm nay")
+    st.pyplot(fig)
+else:
+    st.info("Chưa có đơn nào hôm nay.")
