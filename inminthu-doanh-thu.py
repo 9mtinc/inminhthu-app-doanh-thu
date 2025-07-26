@@ -1,63 +1,98 @@
+# INMINHTHU CAFÉ - QUẢN LÝ DOANH THU
+
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date, time
 import matplotlib.pyplot as plt
+from datetime import datetime
 
-st.set_page_config(layout="wide")
-st.title("📊 Ghi nhận doanh thu - INMINHTHU CAFÉ")
+st.set_page_config(page_title="INMINHTHU CAFÉ - QUẢN LÝ DOANH THU", layout="wide")
+st.title("INMINHTHU CAFÉ - QUẢN LÝ DOANH THU")
 
-# --- Khởi tạo session state ---
-if "data" not in st.session_state:
-    st.session_state["data"] = []
+# --- Dữ liệu menu ---
+menu = {
+    "Cà phê đen": {"M": 12, "L": 17, "XL": 20, "cost": 3.5},
+    "Cà phê sữa": {"M": 15, "L": 19, "XL": 23, "cost": 4.5},
+    "Matcha muối": {"M": 17, "L": 22, "XL": 26, "cost": 6.0},
+    "Bạc xỉu": {"M": 17, "L": 22, "XL": 27, "cost": 5.5},
+    "Trà tắc": {"M": 8, "L": 10, "XL": 15, "cost": 3.0},
+    "Trà đường": {"M": 6, "L": 9, "XL": 10, "cost": 2.5},
+    "Matcha latte": {"M": 17, "L": 22, "XL": 26, "cost": 6.0},
+}
 
-# --- Nhập thông tin ---
-col1, col2, col3, col4, col5 = st.columns(5)
+# --- Khởi tạo session ---
+if "sales" not in st.session_state:
+    st.session_state.sales = []
+
+# --- Nhập dữ liệu ---
+st.subheader("Nhập giao dịch")
+col1, col2 = st.columns(2)
+
 with col1:
-    ngay = st.date_input("Chọn ngày", value=date.today(), format="DD/MM/YYYY")
+    customer = st.text_input("Tên khách hàng")
+    date_time = st.datetime_input("Chọn ngày giờ", format="%A - %d/%m/%Y %H:%M")
 with col2:
-    thoi_gian = st.time_input("Chọn giờ phút", value=datetime.now().time())
-with col3:
-    khach_hang = st.text_input("Tên khách hàng")
-with col4:
-    loai = st.selectbox("Loại nước", ["Cà phê đen", "Cà phê sữa", "Cà phê muối", "Bạc xỉu", "Trà tắc", "Trà đường", "Matcha muối"])
-with col5:
-    kich_co = st.selectbox("Size", ["M 500ml", "L 800ml", "XL 1 lít"])
+    drink = st.selectbox("Chọn đồ uống", list(menu.keys()))
+    size = st.radio("Size", ["M", "L", "XL"])
+    quantity = st.number_input("Số ly", min_value=1, value=1)
 
-# --- Nhấn nút thêm ---
-if st.button("➕ Thêm vào danh sách"):
-    timestamp = datetime.combine(ngay, thoi_gian)
-    st.session_state["data"].append({
-        "Thời gian": timestamp,
-        "Khách hàng": khach_hang,
-        "Loại": loai,
-        "Size": kich_co
+if st.button("Lưu giao dịch"):
+    price = menu[drink][size]
+    cost = menu[drink]["cost"]
+    total_cost = cost * quantity
+    total_price = price * quantity
+    profit = total_price - total_cost
+
+    st.session_state.sales.append({
+        "Thời gian": date_time,
+        "Khách hàng": customer,
+        "Món": drink,
+        "Size": size,
+        "Số ly": quantity,
+        "Doanh thu": total_price,
+        "Chi phí": total_cost,
+        "Lợi nhuận": profit
     })
+    st.success("Đã lưu giao dịch!")
 
-# --- Hiển thị bảng dữ liệu ---
-data = pd.DataFrame(st.session_state["data"])
-if not data.empty:
-    st.subheader("📋 Danh sách khách hàng theo từng ngày")
-    data_sorted = data.sort_values("Thời gian")
-    st.dataframe(data_sorted, use_container_width=True)
+# --- Hiển thị dữ liệu ---
+st.subheader("Bảng doanh thu")
+df = pd.DataFrame(st.session_state.sales)
+if not df.empty:
+    df_sorted = df.sort_values(by="Thời gian", ascending=False)
+    st.dataframe(df_sorted, use_container_width=True)
 
-    # --- Tính tổng số ly mỗi ngày ---
-    data["Ngày"] = data["Thời gian"].dt.date
-    ly_moi_ngay = data.groupby("Ngày").size().reset_index(name="Tổng số ly")
-    st.subheader("📅 Số ly bán mỗi ngày")
-    st.dataframe(ly_moi_ngay, use_container_width=True)
+    # --- Thống kê theo ngày ---
+    df["Ngày"] = df["Thời gian"].dt.date
+    grouped = df.groupby("Ngày").agg({
+        "Số ly": "sum",
+        "Doanh thu": "sum",
+        "Chi phí": "sum",
+        "Lợi nhuận": "sum"
+    }).reset_index()
 
-    # --- Loại nước bán nhiều nhất mỗi ngày ---
-    top_loai = data.groupby(["Ngày", "Loại"]).size().reset_index(name="Số lượng")
-    idx = top_loai.groupby("Ngày")["Số lượng"].idxmax()
-    best_seller = top_loai.loc[idx].reset_index(drop=True)
-    st.subheader("🏆 Loại nước bán nhiều nhất mỗi ngày")
-    st.dataframe(best_seller, use_container_width=True)
+    st.subheader("Tổng hợp theo ngày")
+    st.dataframe(grouped, use_container_width=True)
 
-    # --- Biểu đồ loại nước bán chạy ---
-    st.subheader("📈 Biểu đồ số lượng bán theo loại")
-    loai_chart = data["Loại"].value_counts()
+    # --- Biểu đồ doanh thu ---
+    st.subheader("Biểu đồ doanh thu theo ngày")
     fig, ax = plt.subplots()
-    loai_chart.plot(kind="bar", ax=ax, color="skyblue")
-    ax.set_ylabel("Số lượng")
-    ax.set_title("Tổng số lượng bán theo loại nước")
+    ax.plot(grouped["Ngày"], grouped["Doanh thu"], marker="o", label="Doanh thu")
+    ax.plot(grouped["Ngày"], grouped["Lợi nhuận"], marker="x", label="Lợi nhuận", linestyle="--")
+    ax.set_xlabel("Ngày")
+    ax.set_ylabel("Số tiền (nghìn đồng)")
+    ax.legend()
+    plt.xticks(rotation=45)
     st.pyplot(fig)
+
+    # --- Món bán chạy theo ngày ---
+    st.subheader("Món bán chạy nhất theo ngày")
+    top_items = df.groupby(["Ngày", "Món"])["Số ly"].sum().reset_index()
+    idx = top_items.groupby("Ngày")["Số ly"].idxmax()
+    st.dataframe(top_items.loc[idx].reset_index(drop=True), use_container_width=True)
+
+    # --- Danh sách khách hàng theo ngày ---
+    st.subheader("Danh sách khách hàng theo ngày")
+    grouped_customers = df.groupby("Ngày")["Khách hàng"].apply(list).reset_index()
+    st.dataframe(grouped_customers, use_container_width=True)
+else:
+    st.info("Chưa có giao dịch nào.")
